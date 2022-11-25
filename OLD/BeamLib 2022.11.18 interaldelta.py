@@ -27,79 +27,75 @@ class BeamLab():
         displacement = []
         
 
-        for LC in self.LoadCases: 
-            distlod.append(self.LoadCases[LC].CalcDistributedLoading())
-            shearforce.append(self.LoadCases[LC].CalcShearForce())
-            bendingmoment.append(self.LoadCases[LC].CalcBendingMoment())
-            theta_angle.append(self.LoadCases[LC].CalcAngleTheta())
-            displacement.append(self.LoadCases[LC].CalcDisplacement())
+        for LC in self.LoadCases:
+            LoadCaseToPlot = self.LoadCases[LC]
+            
+            distlod_current = LoadCaseToPlot.CalcDistributedLoading()
+            shearforce_current = LoadCaseToPlot.CalcShearForce()
+            bendingmoment_current = LoadCaseToPlot.CalcBendingMoment()
+            theta_angle_current = LoadCaseToPlot.CalcAngleTheta()
+            displacement_current = LoadCaseToPlot.CalcDisplacement()
 
-        labels = list(self.LoadCases.keys())
 
         ### Dist Loading
         plt.figure("Distributed Loading")
         plt.xlabel('Beam Lenght [m]')
         plt.ylabel('Distributed Loading [N/m]')
-        plt.plot(self.xs, np.transpose(distlod), label = labels)
+        plt.plot(self.xs,distlod_current)
         plt.plot([self.Beam.X_Start,self.Beam.X_End],[0,0],'k')
         plt.grid()
         plt.xlim([self.Beam.X_Start,self.Beam.X_End])
-        plt.legend()
         #plt.show()
 
         ### Shear Force Diagram
         plt.figure("Shear Force Diagram")
         plt.xlabel('Beam Lenght [m]')
         plt.ylabel('Shear Force [N]')
-        plt.plot(self.xs,np.transpose(shearforce), label = labels)
+        plt.plot(self.xs,shearforce_current)
         plt.plot([self.Beam.X_Start,self.Beam.X_End],[0,0],'k')
         plt.grid()
         plt.xlim([self.Beam.X_Start,self.Beam.X_End])
-        plt.legend()
         #plt.show()
 
         ### Bending Moments Diagram
         plt.figure("Bending Moments Diagram")
         plt.xlabel('Beam Lenght [m]')
         plt.ylabel('Bending Moment [Nm]')
-        plt.plot(self.xs,np.transpose(bendingmoment), label = labels)
+        plt.plot(self.xs,bendingmoment_current)
         plt.plot([self.Beam.X_Start,self.Beam.X_End],[0,0],'k')
         plt.grid()
         plt.xlim([self.Beam.X_Start,self.Beam.X_End])
-        plt.legend()
         #plt.show()
 
         ### Theta Diagram
         plt.figure("Angle of Beam")
         plt.xlabel('Beam Lenght [m]')
         plt.ylabel('Theta angle [deg]')
-        plt.plot(self.xs,np.transpose(theta_angle), label = labels)
+        plt.plot(self.xs,theta_angle_current)
         plt.plot([self.Beam.X_Start,self.Beam.X_End],[0,0],'k')
         plt.grid()
         plt.xlim([self.Beam.X_Start,self.Beam.X_End])
-        plt.legend()
         #plt.show()
 
         ### Displacment Diagram
         plt.figure("Displacement of Beam")
         plt.xlabel('Beam Lenght [m]')
         plt.ylabel('Deflection [m]')
-        plt.plot(self.xs,np.transpose(displacement), label = labels)
+        plt.plot(self.xs,displacement_current)
         plt.plot([self.Beam.X_Start,self.Beam.X_End],[0,0],'k')
         plt.grid()
         plt.xlim([self.Beam.X_Start,self.Beam.X_End])
-        plt.legend()
         plt.show()
 
 class Beam():
-    def __init__(self,X_End ,X_Start = 0,ElasticModulus = 210E9,I_Value= (4E6)*1E-12) -> None:  
+    def __init__(self,X_End ,X_Start = 0,ElasticModulus = 210E9,I_Value= (4E6)*1E-12) -> None:
         self.Lenght = X_End - X_Start
         self.X_End = X_End
         self.X_Start = X_Start
         self.ElasticModulus = ElasticModulus    #[Pa]
         self.I_Value = [[X_Start,X_End],[I_Value,I_Value]] #[m^4]
 
-        #print('ElasticModulus:', ElasticModulus)
+        print('ElasticModulus:', ElasticModulus)
 
 
     def ReturnIvalue(self,X_pos):
@@ -129,6 +125,9 @@ class LoadCase():
         self.C1 = UnknownConstant('C1',self)
         self.C2 = UnknownConstant('C2',self)
         
+
+        
+
     ##### Building of Loadcase:
     
     def AddDistributedLoading(self,LoadingName,Magnitudes,Positions):
@@ -248,11 +247,8 @@ class LoadCase():
         
         self.SolVector = np.linalg.solve(self.Matrix,self.Vector)
 
-        print(self.LoadCaseName," :")
         for idx, unknown in enumerate(self.Unknowns):
             unknown.Magnitude = self.SolVector[idx]
-
-        for idx, unknown in enumerate(self.Unknowns[2:]):
             print(unknown.Name,'  :', unknown.Magnitude)
 
     def ReturnElement(self,X_pos):
@@ -508,7 +504,7 @@ class SumOfForcesBoundaryCondition():
         LHS = np.zeros(len(self.LoadCase.Unknowns))
 
         for i in self.LoadCase.Elements:
-            RHS = RHS - (i.CumulativeShearForce)
+            RHS = RHS - (((i.GradientQ/2)*((i.EndPos)**2) + (i.Y_InterceptQ)*((i.EndPos)**1)) - ((i.GradientQ/2)*((i.StartPos)**2) + (i.Y_InterceptQ)*((i.StartPos)**1)))
 
         #for dist in self.LoadCase.DistributedLoadings:
         #    for posdx in range(len(self.LoadCase.DistributedLoadings[dist].Positions)):
@@ -533,7 +529,16 @@ class SumOfMomentsBoundaryCondition():
         LHS = np.zeros(len(self.LoadCase.Unknowns))
 
         for i in self.LoadCase.Elements:
-            RHS = RHS - (i.CGx*i.CumulativeShearForce)
+            RHS = RHS - (((i.GradientQ/6)*((i.EndPos)**3) + (i.Y_InterceptQ/2)*((i.EndPos)**2)) - ((i.GradientQ/6)*((i.StartPos)**3) + (i.Y_InterceptQ/2)*((i.StartPos)**2)))
+
+
+        #for dist in self.LoadCase.DistributedLoadings:
+        #    for posdx, pos in enumerate(self.LoadCase.DistributedLoadings[dist].Positions):
+        #        if posdx!=0:
+        #            
+        #            Moment1 = self.LoadCase.DistributedLoadings[dist].Magnitudes[posdx-1]*(self.LoadCase.DistributedLoadings[dist].Positions[posdx]-self.LoadCase.DistributedLoadings[dist].Positions[posdx-1])*np.mean([self.LoadCase.DistributedLoadings[dist].Positions[posdx],self.LoadCase.DistributedLoadings[dist].Positions[posdx-1]])
+        #            Moment2 = 0.5*(self.LoadCase.DistributedLoadings[dist].Magnitudes[posdx]-self.LoadCase.DistributedLoadings[dist].Magnitudes[posdx-1])*(self.LoadCase.DistributedLoadings[dist].Positions[posdx]-self.LoadCase.DistributedLoadings[dist].Positions[posdx-1])*(self.LoadCase.DistributedLoadings[dist].Positions[posdx-1] + (2/3)*(self.LoadCase.DistributedLoadings[dist].Positions[posdx]-self.LoadCase.DistributedLoadings[dist].Positions[posdx-1]))
+        #            RHS = RHS - Moment1 - Moment2
 
         for force in self.LoadCase.Forces:
             if type(self.LoadCase.Forces[force]) == Force:
@@ -587,12 +592,6 @@ class BeamElement():
                         self.GradientQ = self.GradientQ + grad
                         self.Y_InterceptQ = self.Y_InterceptQ + intercept
 
-        self.CumulativeShearForce = np.mean([Q2,Q1])*(self.EndPos-self.StartPos)
-        if self.CumulativeShearForce !=0:
-            self.CGx = (1/self.CumulativeShearForce)*(self.Y_InterceptQ*self.EndPos**2/2 - self.Y_InterceptQ*self.StartPos**2/2 + self.GradientQ*self.EndPos**3/3 - self.GradientQ*self.StartPos**3/3)
-        else:
-            self.CGx = 0
-
     ### Still Required for Future implementation;
     # Evaluate Shear force Equation
     # Evaluate Bending moment Equation 
@@ -603,12 +602,14 @@ class BeamElement():
         LHS = np.zeros(len(self.LoadCase.Unknowns))
 
         
+        
+
         for i in self.LoadCase.Elements:
-            if i == self:             
-                RHS = RHS - (self.Y_InterceptQ*Position**3/6 - self.Y_InterceptQ*Position**2*self.StartPos/2 + self.Y_InterceptQ*Position*self.StartPos**2/2 - self.Y_InterceptQ*self.StartPos**3/6 + self.GradientQ*Position**4/24 - self.GradientQ*Position**2*self.StartPos**2/4 + self.GradientQ*Position*self.StartPos**3/3 - self.GradientQ*self.StartPos**4/8)
+            if i == self:
+                RHS = RHS - ((self.GradientQ/24)*((Position-self.StartPos)**4) + (self.Y_InterceptQ/6)*((Position-self.StartPos)**3))
                 break
             else:
-                RHS = RHS - (i.Y_InterceptQ*Position**2*i.EndPos/2 - i.Y_InterceptQ*Position**2*i.StartPos/2 - i.Y_InterceptQ*Position*i.EndPos**2/2 + i.Y_InterceptQ*Position*i.StartPos**2/2 + i.Y_InterceptQ*i.EndPos**3/6 - i.Y_InterceptQ*i.StartPos**3/6 + i.GradientQ*Position**2*i.EndPos**2/4 - i.GradientQ*Position**2*i.StartPos**2/4 - i.GradientQ*Position*i.EndPos**3/3 + i.GradientQ*Position*i.StartPos**3/3 + i.GradientQ*i.EndPos**4/8 - i.GradientQ*i.StartPos**4/8)
+                RHS = RHS - (((i.GradientQ/24)*((i.EndPos-i.StartPos)**4) + (i.Y_InterceptQ/6)*((i.EndPos-i.StartPos)**3)))
 
                 
         
@@ -651,10 +652,13 @@ class BeamElement():
                 
         for i in self.LoadCase.Elements:
             if i == self:
-                RHS = RHS - (self.Y_InterceptQ*Position**4/24 - self.Y_InterceptQ*Position**3*self.StartPos/6 + self.Y_InterceptQ*Position**2*self.StartPos**2/4 - self.Y_InterceptQ*Position*self.StartPos**3/6 + self.Y_InterceptQ*self.StartPos**4/24 + self.GradientQ*Position**5/120 - self.GradientQ*Position**3*self.StartPos**2/12 + self.GradientQ*Position**2*self.StartPos**3/6 - self.GradientQ*Position*self.StartPos**4/8 + self.GradientQ*self.StartPos**5/30)
+                RHS = RHS - ((self.GradientQ/120)*((Position-self.StartPos)**5) + (self.Y_InterceptQ/24)*((Position-self.StartPos)**4))
                 break
             else:
-                RHS = RHS - (i.Y_InterceptQ*Position**3*i.EndPos/6 - i.Y_InterceptQ*Position**3*i.StartPos/6 - i.Y_InterceptQ*Position**2*i.EndPos**2/4 + i.Y_InterceptQ*Position**2*i.StartPos**2/4 + i.Y_InterceptQ*Position*i.EndPos**3/6 - i.Y_InterceptQ*Position*i.StartPos**3/6 - i.Y_InterceptQ*i.EndPos**4/24 + i.Y_InterceptQ*i.StartPos**4/24 + i.GradientQ*Position**3*i.EndPos**2/12 - i.GradientQ*Position**3*i.StartPos**2/12 - i.GradientQ*Position**2*i.EndPos**3/6 + i.GradientQ*Position**2*i.StartPos**3/6 + i.GradientQ*Position*i.EndPos**4/8 - i.GradientQ*Position*i.StartPos**4/8 - i.GradientQ*i.EndPos**5/30 + i.GradientQ*i.StartPos**5/30)
+                RHS = RHS - (((i.GradientQ/120)*((i.EndPos-i.StartPos)**5) + (i.Y_InterceptQ/24)*((i.EndPos-i.StartPos)**4)))
+
+
+
 
         for force in self.LoadCase.Forces:
             CurrentForce = self.LoadCase.Forces[force]
@@ -699,19 +703,19 @@ class BeamElement():
                 
         for i in self.LoadCase.Elements:
             if i == self:
-                ForcePresent = ForcePresent + (self.Y_InterceptQ*xs - self.Y_InterceptQ*self.StartPos + self.GradientQ*xs**2/2 - self.GradientQ*self.StartPos**2/2)
+                ForcePresent = ForcePresent + (self.GradientQ/2)*(xs-self.StartPos)**2 + self.Y_InterceptQ*(xs-self.StartPos)
                 break
             else:
-                ForcePresent = ForcePresent + (i.Y_InterceptQ*i.EndPos - i.Y_InterceptQ*i.StartPos + i.GradientQ*i.EndPos**2/2 - i.GradientQ*i.StartPos**2/2)
+                ForcePresent = ForcePresent + (((i.GradientQ/2)*(i.EndPos-i.StartPos)**2 + i.Y_InterceptQ*(i.EndPos-i.StartPos)))
 
 
         for force in self.LoadCase.Forces:
             CurrentForce = self.LoadCase.Forces[force]
             if CurrentForce.Position <= self.StartPos:
                 if type(CurrentForce) == Force:
-                    ForcePresent = ForcePresent + CurrentForce.Magnitude
+                        ForcePresent = ForcePresent + CurrentForce.Magnitude
                 if type(CurrentForce) == ReactionForce:
-                    ForcePresent = ForcePresent + CurrentForce.Magnitude.Magnitude
+                        ForcePresent = ForcePresent + CurrentForce.Magnitude.Magnitude
 
         return ForcePresent
 
@@ -723,27 +727,26 @@ class BeamElement():
                 
         for i in self.LoadCase.Elements:
             if i == self:
-                MomentPresent = MomentPresent + (self.Y_InterceptQ*xs**2/2 - self.Y_InterceptQ*xs*self.StartPos + self.Y_InterceptQ*self.StartPos**2/2 + self.GradientQ*xs**3/6 - self.GradientQ*xs*self.StartPos**2/2 + self.GradientQ*self.StartPos**3/3)
+                MomentPresent = MomentPresent + (self.GradientQ/6)*(xs-self.StartPos)**3 + (self.Y_InterceptQ/2)*(xs-self.StartPos)**2
                 break
             else:
-                # print(i.CGx)
-                MomentPresent = MomentPresent + (i.Y_InterceptQ*xs*i.EndPos - i.Y_InterceptQ*xs*i.StartPos - i.Y_InterceptQ*i.EndPos**2/2 + i.Y_InterceptQ*i.StartPos**2/2 + i.GradientQ*xs*i.EndPos**2/2 - i.GradientQ*xs*i.StartPos**2/2 - i.GradientQ*i.EndPos**3/3 + i.GradientQ*i.StartPos**3/3)
+                MomentPresent = MomentPresent + (((i.GradientQ/6)*(i.EndPos-i.StartPos)**3 + (i.Y_InterceptQ/2)*(i.EndPos-i.StartPos)**2))
 
         for force in self.LoadCase.Forces:
             CurrentForce = self.LoadCase.Forces[force]
             if CurrentForce.Position <= self.StartPos:
                 if type(CurrentForce) == Force:
-                    MomentPresent = MomentPresent + (CurrentForce.Magnitude*(xs-CurrentForce.Position))
+                        MomentPresent = MomentPresent + CurrentForce.Magnitude*(xs-CurrentForce.Position)
                 if type(CurrentForce) == ReactionForce:
-                    MomentPresent = MomentPresent + (CurrentForce.Magnitude.Magnitude*(xs-CurrentForce.Position))
+                        MomentPresent = MomentPresent + CurrentForce.Magnitude.Magnitude*(xs-CurrentForce.Position)
 
         for moment in self.LoadCase.Moments:
             CurrentMoment = self.LoadCase.Moments[moment]
             if CurrentMoment.Position <= self.StartPos:
                 if type(CurrentMoment) == Moment:
-                    MomentPresent = MomentPresent - CurrentMoment.Magnitude
+                        MomentPresent = MomentPresent - CurrentMoment.Magnitude
                 if type(CurrentMoment) == ReactionMoment:
-                    MomentPresent = MomentPresent - CurrentMoment.Magnitude.Magnitude
+                        MomentPresent = MomentPresent - CurrentMoment.Magnitude.Magnitude
 
         return MomentPresent
 
@@ -752,63 +755,72 @@ class BeamElement():
         ThetaPresent = np.zeros(len(xs)) 
         ## Distributed loading:
 
+
+        
+
         for i in self.LoadCase.Elements:
             if i == self:
-                ThetaPresent = ThetaPresent + (self.Y_InterceptQ*xs**3/6 - self.Y_InterceptQ*xs**2*self.StartPos/2 + self.Y_InterceptQ*xs*self.StartPos**2/2 - self.Y_InterceptQ*self.StartPos**3/6 + self.GradientQ*xs**4/24 - self.GradientQ*xs**2*self.StartPos**2/4 + self.GradientQ*xs*self.StartPos**3/3 - self.GradientQ*self.StartPos**4/8)
+                ThetaPresent = ThetaPresent + ((self.GradientQ/24)*(xs-self.StartPos)**4 + (self.Y_InterceptQ/6)*(xs-self.StartPos)**3)
                 break
             else:
-                ThetaPresent = ThetaPresent + (i.Y_InterceptQ*xs**2*i.EndPos/2 - i.Y_InterceptQ*xs**2*i.StartPos/2 - i.Y_InterceptQ*xs*i.EndPos**2/2 + i.Y_InterceptQ*xs*i.StartPos**2/2 + i.Y_InterceptQ*i.EndPos**3/6 - i.Y_InterceptQ*i.StartPos**3/6 + i.GradientQ*xs**2*i.EndPos**2/4 - i.GradientQ*xs**2*i.StartPos**2/4 - i.GradientQ*xs*i.EndPos**3/3 + i.GradientQ*xs*i.StartPos**3/3 + i.GradientQ*i.EndPos**4/8 - i.GradientQ*i.StartPos**4/8)
+                ThetaPresent = ThetaPresent + (((i.GradientQ/24)*(i.EndPos-i.StartPos)**4 + (i.Y_InterceptQ/6)*(i.EndPos-i.StartPos)**3))
 
         for force in self.LoadCase.Forces:
             CurrentForce = self.LoadCase.Forces[force]
             if CurrentForce.Position <= self.StartPos:
                 if type(CurrentForce) == Force:
-                    ThetaPresent = ThetaPresent + ((CurrentForce.Magnitude/2)*(xs-CurrentForce.Position)**2)    
+                        ThetaPresent = ThetaPresent + ((CurrentForce.Magnitude/2)*(xs-CurrentForce.Position)**2)    
                 if type(CurrentForce) == ReactionForce:
-                    ThetaPresent = ThetaPresent + ((CurrentForce.Magnitude.Magnitude/2)*(xs-CurrentForce.Position)**2)
+                        ThetaPresent = ThetaPresent + ((CurrentForce.Magnitude.Magnitude/2)*(xs-CurrentForce.Position)**2)
 
         for moment in self.LoadCase.Moments:
             CurrentMoment = self.LoadCase.Moments[moment]
             if CurrentMoment.Position <= self.StartPos:
                 if type(CurrentMoment) == Moment:
-                    ThetaPresent = ThetaPresent - (CurrentMoment.Magnitude*(xs-CurrentMoment.Position))
+                        ThetaPresent = ThetaPresent - (CurrentMoment.Magnitude*(xs-CurrentMoment.Position))
                 if type(CurrentMoment) == ReactionMoment:
-                    ThetaPresent = ThetaPresent - (CurrentMoment.Magnitude.Magnitude*(xs-CurrentMoment.Position))
+                        ThetaPresent = ThetaPresent - (CurrentMoment.Magnitude.Magnitude*(xs-CurrentMoment.Position))
 
-
-        return (ThetaPresent + (self.LoadCase.C1.Magnitude))*(180/np.pi)/EIs
+        #print("constant:",self.C1.Magnitude)
+        #(ThetaPresent + (self.C1.Magnitude/EIs))*(180/np.pi)
+        constant = self.LoadCase.C1.Magnitude
+        return (ThetaPresent + (constant))*(180/np.pi)/EIs
 
     def DisplacementFunction(self,xs):
         EIs = (self.LoadCase.Lab.Beam.ReturnIvalue(xs)*self.LoadCase.Lab.Beam.ElasticModulus)
         DisplacePresent = np.zeros(len(xs))
         ## Distributed loading:
 
+        
+
         for i in self.LoadCase.Elements:
             if i == self:
-                DisplacePresent = DisplacePresent + (self.Y_InterceptQ*xs**4/24 - self.Y_InterceptQ*xs**3*self.StartPos/6 + self.Y_InterceptQ*xs**2*self.StartPos**2/4 - self.Y_InterceptQ*xs*self.StartPos**3/6 + self.Y_InterceptQ*self.StartPos**4/24 + self.GradientQ*xs**5/120 - self.GradientQ*xs**3*self.StartPos**2/12 + self.GradientQ*xs**2*self.StartPos**3/6 - self.GradientQ*xs*self.StartPos**4/8 + self.GradientQ*self.StartPos**5/30)
+                DisplacePresent = DisplacePresent + ((self.GradientQ/120)*(xs-self.StartPos)**5 + (self.Y_InterceptQ/24)*(xs-self.StartPos)**4)
                 break
             else:
-                DisplacePresent = DisplacePresent + (i.Y_InterceptQ*xs**3*i.EndPos/6 - i.Y_InterceptQ*xs**3*i.StartPos/6 - i.Y_InterceptQ*xs**2*i.EndPos**2/4 + i.Y_InterceptQ*xs**2*i.StartPos**2/4 + i.Y_InterceptQ*xs*i.EndPos**3/6 - i.Y_InterceptQ*xs*i.StartPos**3/6 - i.Y_InterceptQ*i.EndPos**4/24 + i.Y_InterceptQ*i.StartPos**4/24 + i.GradientQ*xs**3*i.EndPos**2/12 - i.GradientQ*xs**3*i.StartPos**2/12 - i.GradientQ*xs**2*i.EndPos**3/6 + i.GradientQ*xs**2*i.StartPos**3/6 + i.GradientQ*xs*i.EndPos**4/8 - i.GradientQ*xs*i.StartPos**4/8 - i.GradientQ*i.EndPos**5/30 + i.GradientQ*i.StartPos**5/30)
+                DisplacePresent = DisplacePresent + (((i.GradientQ/120)*(i.EndPos-i.StartPos)**5 + (i.Y_InterceptQ/24)*(i.EndPos-i.StartPos)**4))
 
         for force in self.LoadCase.Forces:
             CurrentForce = self.LoadCase.Forces[force]
             if CurrentForce.Position <= self.StartPos:
                 if type(CurrentForce) == Force:
-                    DisplacePresent = DisplacePresent + ((CurrentForce.Magnitude/6)*(xs-CurrentForce.Position)**3)  
+                        DisplacePresent = DisplacePresent + ((CurrentForce.Magnitude/6)*(xs-CurrentForce.Position)**3)  
                 if type(CurrentForce) == ReactionForce:
-                    DisplacePresent = DisplacePresent + ((CurrentForce.Magnitude.Magnitude/6)*(xs-CurrentForce.Position)**3)
+                        DisplacePresent = DisplacePresent + ((CurrentForce.Magnitude.Magnitude/6)*(xs-CurrentForce.Position)**3)
 
         for moment in self.LoadCase.Moments:
             CurrentMoment = self.LoadCase.Moments[moment]
             if CurrentMoment.Position <= self.StartPos:
                 if type(CurrentMoment) == Moment:
-                    DisplacePresent = DisplacePresent - ((CurrentMoment.Magnitude/2)*(xs-CurrentMoment.Position)**2)
+                        DisplacePresent = DisplacePresent - ((CurrentMoment.Magnitude/2)*(xs-CurrentMoment.Position)**2)
                 if type(CurrentMoment) == ReactionMoment:
-                    DisplacePresent = DisplacePresent - ((CurrentMoment.Magnitude.Magnitude/2)*(xs-CurrentMoment.Position)**2)
+                        DisplacePresent = DisplacePresent - ((CurrentMoment.Magnitude.Magnitude/2)*(xs-CurrentMoment.Position)**2)
 
 
-        print
-        return (DisplacePresent + (xs*self.LoadCase.C1.Magnitude) + (self.LoadCase.C2.Magnitude))/EIs
+        # (DisplacePresent + (xs*self.C1.Magnitude/EIs) + (self.C2.Magnitude/EIs))
+        constant1 = self.LoadCase.C1.Magnitude
+        constant2 = self.LoadCase.C2.Magnitude
+        return (DisplacePresent + (xs*constant1) + (constant2))/EIs
 
 class UnknownConstant():
     def __init__(self,Name,LoadCase) -> None:
